@@ -1,3 +1,6 @@
+// Modified by OpenHeart Inc. (2026-10-22): skip zero-block kernel launches when no primitive is visible.
+// See https://github.com/openheart-inc/faster-gaussian-splatting/tree/tavio/empty-view-launch
+
 #include "inference.h"
 #include "kernels_inference.cuh"
 #include "buffer_utils.h"
