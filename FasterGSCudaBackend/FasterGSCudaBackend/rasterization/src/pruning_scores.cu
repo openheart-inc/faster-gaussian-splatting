@@ -109,13 +109,16 @@ void faster_gs::rasterization::pruning_scores(
     );
     CHECK_CUDA(config::debug, "cub::DeviceRadixSort::SortPairs (depth)")
 
-    kernels::pruning_scores::apply_depth_ordering_cu<<<div_round_up(n_visible_primitives, config::block_size_apply_depth_ordering), config::block_size_apply_depth_ordering>>>(
-        primitive_buffers.primitive_indices.Current(),
-        primitive_buffers.n_touched_tiles,
-        primitive_buffers.offset,
-        n_visible_primitives
-    );
-    CHECK_CUDA(config::debug, "apply_depth_ordering")
+    // launching with zero blocks is an invalid configuration; nothing to do when no primitive is visible
+    if (n_visible_primitives > 0) {
+        kernels::pruning_scores::apply_depth_ordering_cu<<<div_round_up(n_visible_primitives, config::block_size_apply_depth_ordering), config::block_size_apply_depth_ordering>>>(
+            primitive_buffers.primitive_indices.Current(),
+            primitive_buffers.n_touched_tiles,
+            primitive_buffers.offset,
+            n_visible_primitives
+        );
+        CHECK_CUDA(config::debug, "apply_depth_ordering")
+    }
 
     cub::DeviceScan::ExclusiveSum(
         primitive_buffers.cub_workspace,
@@ -167,18 +170,21 @@ void faster_gs::rasterization::compute_scores(
     char* instance_buffers_blob = resize_instance_buffers(required<InstanceBuffers<KeyT>>(n_instances, end_bit));
     InstanceBuffers<KeyT> instance_buffers = InstanceBuffers<KeyT>::from_blob(instance_buffers_blob, n_instances, end_bit);
 
-    kernels::pruning_scores::create_instances_cu<KeyT><<<div_round_up(n_visible_primitives, config::block_size_create_instances), config::block_size_create_instances>>>(
-        primitive_buffers.primitive_indices.Current(),
-        primitive_buffers.offset,
-        primitive_buffers.screen_bounds,
-        primitive_buffers.mean2d,
-        primitive_buffers.conic_opacity,
-        instance_buffers.keys.Current(),
-        instance_buffers.primitive_indices.Current(),
-        grid.x,
-        n_visible_primitives
-    );
-    CHECK_CUDA(config::debug, "create_instances")
+    // launching with zero blocks is an invalid configuration; nothing to do when no primitive is visible
+    if (n_visible_primitives > 0) {
+        kernels::pruning_scores::create_instances_cu<KeyT><<<div_round_up(n_visible_primitives, config::block_size_create_instances), config::block_size_create_instances>>>(
+            primitive_buffers.primitive_indices.Current(),
+            primitive_buffers.offset,
+            primitive_buffers.screen_bounds,
+            primitive_buffers.mean2d,
+            primitive_buffers.conic_opacity,
+            instance_buffers.keys.Current(),
+            instance_buffers.primitive_indices.Current(),
+            grid.x,
+            n_visible_primitives
+        );
+        CHECK_CUDA(config::debug, "create_instances")
+    }
 
     cub::DeviceRadixSort::SortPairs(
         instance_buffers.cub_workspace,
